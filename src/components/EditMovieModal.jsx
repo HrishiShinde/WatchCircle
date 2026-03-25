@@ -25,7 +25,7 @@ export default function EditMovieModal({ movie, onClose, onSave }) {
     const load = async () => {
       const [{ data: gData }, { data: pData }] = await Promise.all([
         supabase.from('genres').select('*').order('name'),
-        supabase.from('platforms').select('*').order('name'),
+        supabase.from('platforms').select('*').order('id'),
       ])
       if (gData) {
         setDbGenres(gData)

@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, CirclePlay } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import styles from './PlatformSelect.module.css'
 
 function PlatformLogo({ logoUrl, name, size = 'sm' }) {
   const [err, setErr] = useState(false)
-  if (!logoUrl || err) return <span className={styles.emoji}>🎬</span>
+  if (!logoUrl || err) return <span className={styles.emoji}><CirclePlay /></span>
   return (
     <div className={styles.logoWrap}>
       <img
@@ -24,7 +24,7 @@ export default function PlatformSelect({ selected = null, onChange, useIds = fal
   const ref = useRef(null)
 
   useEffect(() => {
-    supabase.from('platforms').select('*').order('name').then(({ data }) => {
+    supabase.from('platforms').select('*').order('id').then(({ data }) => {
       if (data) setPlatforms(data)
     })
   }, [])
