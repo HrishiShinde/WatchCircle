@@ -24,7 +24,7 @@ export default function MovieCard({ movie, isHighlighted, onClick }) {
             onError={() => setImgError(true)}
           />
         ) : (
-          <PosterFallback title={movie.title} genre={movie.genre} size="md" />
+          <PosterFallback title={movie.title} genres={movie.genres} genre={movie.genre} size="md" />
         )}
 
         {movie.watched_by_me && (

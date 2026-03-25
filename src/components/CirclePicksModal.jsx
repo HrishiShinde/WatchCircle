@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Sparkles, Tv, User, Calendar, Clock } from 'lucide-react'
 import { TMDB_IMG } from '../lib/supabase'
 import PosterFallback from './PosterFallback'
+import GenreTag       from './GenreTag'
 import styles from './CirclePicksModal.module.css'
 
 export default function CirclePicksModal({ movie, onClose, onViewDetail }) {
@@ -30,9 +31,10 @@ export default function CirclePicksModal({ movie, onClose, onViewDetail }) {
     ? `${TMDB_IMG}${movie.poster_path}`
     : null
 
-  const genre = Array.isArray(movie.genres)
-    ? movie.genres[0]
-    : movie.genre || null
+  // Normalise genres to array
+  const genreList = Array.isArray(movie.genres)
+    ? movie.genres
+    : movie.genre ? movie.genre.split(',').map(g => g.trim()) : []
 
   return (
     <div className={styles.backdrop} onClick={e => e.target === e.currentTarget && onClose()}>
@@ -55,13 +57,20 @@ export default function CirclePicksModal({ movie, onClose, onViewDetail }) {
                 onError={() => setImgError(true)}
               />
             ) : (
-              <PosterFallback title={movie.title} genre={genre} size="md" />
+              <PosterFallback title={movie.title} genres={genreList} size="md" />
             )}
           </div>
 
           <div className={styles.info}>
             <h2 className={styles.title}>{movie.title}</h2>
-            {genre && <div className={styles.genreTag}>{genre}</div>}
+            {/* {genre && <div className={styles.genreTag}>{genre}</div>} */}
+            
+            {/* Genre tags — same as MovieModal */}
+            {genreList.length > 0 && (
+              <div className={styles.genreTag}>
+                {genreList.map(g => <GenreTag key={g} name={g} size="sm" />)}
+              </div>
+            )}
 
             <div className={styles.dflex}>
               {movie.release_year && (

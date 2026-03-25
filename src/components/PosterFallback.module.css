@@ -13,15 +13,11 @@
 .bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--gc, #888) 20%, var(--bg3)),
-    var(--bg4)
-  );
+  transition: opacity 0.3s;
 }
 
 /* Sizes */
-.sm .initials { font-size: 28px; }
+.sm .initials { font-size: 26px; }
 .sm .genre    { font-size: 9px; }
 
 .md .initials { font-size: 38px; }
@@ -34,9 +30,8 @@
   position: relative;
   font-family: var(--font-head);
   letter-spacing: 2px;
-  color: color-mix(in srgb, var(--gc, #888) 80%, white);
   line-height: 1;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  text-shadow: 0 2px 16px rgba(0,0,0,0.5);
 }
 
 .genre {
@@ -44,6 +39,5 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--gc, #888) 70%, white);
-  opacity: 0.75;
+  opacity: 0.8;
 }

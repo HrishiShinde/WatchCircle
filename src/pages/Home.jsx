@@ -155,9 +155,9 @@ export default function Home({ session }) {
     }
   }
 
-  const onEditOpen = (movie) => {
+  const onEditOpen = (movie, posterMode = false) => {
     setDetailMovie(null)
-    setEditMovie(movie)
+    setEditMovie({ ...movie, _posterMode: posterMode })
   }
 
   const onSaveEdit = async (movieId, movieData) => {

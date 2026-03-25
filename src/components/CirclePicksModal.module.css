@@ -107,15 +107,15 @@
   background: linear-gradient(145deg, var(--bg3), var(--bg4));
 }
 
-.info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.info { 
+  flex: 1; 
+  /* display: flex; flex-direction: column; justify-content: center;  */
+}
 
 .genreTag {
   display: inline-block;
-  background: rgba(124,58,237,0.15);
-  color: #A78BFA;
   font-size: 10px;
   font-weight: 600;
-  padding: 3px 10px;
   border-radius: 20px;
   margin-bottom: 10px;
   letter-spacing: 0.04em;

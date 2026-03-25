@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
-import { X, Tv, User, Calendar, Clock, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Clock, Calendar, User, ExternalLink, Pencil, Trash2, MoreVertical, Camera } from 'lucide-react'
 import { TMDB_IMG } from '../lib/supabase'
 import { getPlatformByName } from '../lib/models'
-import GenreTag      from './GenreTag'
+import GenreTag       from './GenreTag'
 import PosterFallback from './PosterFallback'
 import styles from './MovieModal.module.css'
 
@@ -15,6 +15,8 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
   const [error,         setError]         = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [imgError,      setImgError]      = useState(false)
+  const [menuOpen,      setMenuOpen]      = useState(false)
+  const menuRef = useRef(null)
 
   useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose() }
@@ -25,6 +27,18 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
+  }, [])
+
+  // Close menu on outside click
+  useEffect(() => {
+    const handler = e => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+        setConfirmDelete(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const posterUrl = movie.poster_path && !imgError
@@ -70,7 +84,49 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
   return (
     <div className={styles.backdrop} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className={styles.modal}>
+        {/* Close button */}
         <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
+
+        {/* ⋮ Menu — only for owner/mod */}
+        {canEdit && (
+          <div className={styles.menuWrap} ref={menuRef}>
+            <button
+              className={styles.menuBtn}
+              onClick={() => { setMenuOpen(o => !o); setConfirmDelete(false) }}
+              title="Options"
+            >
+              <MoreVertical size={16} />
+            </button>
+
+            {menuOpen && (
+              <div className={styles.menuDropdown}>
+                <button
+                  className={styles.menuItem}
+                  onClick={() => { setMenuOpen(false); onEdit?.(movie) }}
+                >
+                  <Pencil size={13} /> Edit movie
+                </button>
+
+                <button
+                  className={styles.menuItem}
+                  onClick={() => { setMenuOpen(false); onEdit?.(movie, true) }}
+                >
+                  <Camera size={13} /> Change poster
+                </button>
+
+                <div className={styles.menuDivider} />
+
+                <button
+                  className={`${styles.menuItem} ${styles.menuItemDelete} ${confirmDelete ? styles.menuItemConfirm : ''}`}
+                  onClick={handleDelete}
+                >
+                  <Trash2 size={13} />
+                  {confirmDelete ? 'Confirm delete?' : 'Delete movie'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Left: poster ── */}
         <div className={styles.posterCol}>
@@ -82,39 +138,23 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
               onError={() => setImgError(true)}
             />
           ) : (
-            <PosterFallback title={movie.title} genre={genreList[0]} size="lg" />
+            <PosterFallback title={movie.title} genres={genreList} size="lg" />
           )}
         </div>
 
         {/* ── Right: details ── */}
         <div className={styles.body}>
 
-          {/* Edit / Delete — only visible to owner or mod */}
-          {/* {canEdit && (
-            <div className={styles.modActions}>
-              <button className={styles.editBtn} onClick={() => onEdit?.(movie)} title="Edit movie">
-                <Pencil size={13} /> Edit
-              </button>
-              <button
-                className={`${styles.deleteBtn} ${confirmDelete ? styles.confirmDelete : ''}`}
-                onClick={handleDelete}
-                title="Delete movie"
-              >
-                <Trash2 size={13} />
-                {confirmDelete ? 'Confirm delete?' : 'Delete'}
-              </button>
-            </div>
-          )} */}
-
           <h2 className={styles.title}>{movie.title}</h2>
 
           {/* Genre tags */}
           {genreList.length > 0 && (
-            <div className={styles.genreTag}>
+            <div className={styles.genreTagRow}>
               {genreList.map(g => <GenreTag key={g} name={g} size="md" />)}
             </div>
           )}
 
+          {/* Meta row: year • duration • added by */}
           <div className={styles.metaList}>
             <div className={styles.dflex}>
               {movie.release_year && (
@@ -124,7 +164,7 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
                 </div>
               )}
               {movie.release_year && movie.duration && (
-                <span style={{ marginTop: '-2px', color: 'var(--text3)' }}>•</span>
+                <span className={styles.dot}>•</span>
               )}
               {movie.duration && (
                 <div className={styles.metaRow}>
@@ -139,7 +179,8 @@ export default function MovieModal({ movie, session, onClose, onRate, onEdit, on
             </div>
           </div>
 
-          <div className={styles.dflex}>
+          {/* Rating + platform card */}
+          <div className={styles.dflex} style={{ alignItems: 'stretch', marginTop: 14, justifyContent: "space-between" }}>
             {movie.avg_rating && (
               <div className={styles.communityRating}>
                 <span className={styles.bigStar}>★</span>
