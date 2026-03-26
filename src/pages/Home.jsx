@@ -13,7 +13,7 @@ import { useTheme }     from '../hooks/useTheme'
 import { useToast }     from '../hooks/useToast'
 import { useMovies }    from '../hooks/useMovies'
 import styles from './Home.module.css'
-import { Clapperboard, SearchX, AlertTriangle, Film, Eye, PartyPopper, Loader2 } from 'lucide-react'
+import { Clapperboard, SearchX, AlertTriangle, Film, Eye, PartyPopper, Loader2, Star } from 'lucide-react'
 
 const MOCK_MOVIES = [
   { id:1, title:'Dune: Part Two', genre:'Sci-Fi', duration:166,
@@ -86,6 +86,7 @@ export default function Home({ session }) {
   } = useMovies(session)
 
   const [filter,          setFilter]          = useState('all')
+  const [ratingFilter,    setRatingFilter]    = useState(null)  // null | '5' | '7' | '9'
   const [search,          setSearch]          = useState('')
   const [activeGenre,     setActiveGenre]     = useState(null)
   const [highlightId,     setHighlightId]     = useState(null)
@@ -93,6 +94,7 @@ export default function Home({ session }) {
   const [editMovie,       setEditMovie]       = useState(null)
   const [circlePickMovie, setCirclePickMovie] = useState(null)
   const [showAdd,         setShowAdd]         = useState(false)
+  const [addInitialQuery, setAddInitialQuery] = useState('')
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -107,9 +109,11 @@ export default function Home({ session }) {
       const matchGenre = !activeGenre ||
         (m.genres || []).includes(activeGenre) ||
         (m.genre || '').split(',').map(g => g.trim()).includes(activeGenre)
-      return matchSearch && matchFilter && matchGenre
+      const matchRating = !ratingFilter ||
+        (m.avg_rating && Number(m.avg_rating) >= Number(ratingFilter))
+      return matchSearch && matchFilter && matchGenre && matchRating
     })
-  }, [movies, filter, search, activeGenre])
+  }, [movies, filter, search, activeGenre, ratingFilter])
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -118,13 +122,20 @@ export default function Home({ session }) {
     const avg = ratings.length
       ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
       : null
-    return { total: movies.length, watched: watched.length, avg }
+    const myMovies = movies.filter(m => m.added_by == session.user.id).length;
+    return { total: movies.length, watched: watched.length, avg, myMovies }
   }, [movies])
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleFilter = (f) => { setFilter(f); setHighlightId(null) }
-  const handleSearch = (v) => { setSearch(v); setHighlightId(null) }
-  const handleGenre  = (g) => { setActiveGenre(g); setHighlightId(null) }
+  const handleFilter       = (f) => { setFilter(f); setHighlightId(null) }
+  const handleRatingFilter = (r) => { setRatingFilter(r); setHighlightId(null) }
+  const handleSearch       = (v) => { setSearch(v); setHighlightId(null) }
+  const handleGenre        = (g) => { setActiveGenre(g); setHighlightId(null) }
+
+  const openAdd = (initialQuery = '') => {
+    setAddInitialQuery(initialQuery)
+    setShowAdd(true)
+  }
 
   const handleRandom = () => {
     const pool = movies.filter(m => !m.watched_by_me)
@@ -137,7 +148,6 @@ export default function Home({ session }) {
   const onRate = async (movieId, rating) => {
     try {
       const updated = await handleRate(movieId, rating)
-      // Update detail modal with fresh data
       setDetailMovie(prev => prev?.id === movieId ? updated : prev)
       success('Marked as watched! 🎬')
     } catch (err) {
@@ -149,6 +159,7 @@ export default function Home({ session }) {
     try {
       const newMovie = await handleAdd(movieData)
       setShowAdd(false)
+      setAddInitialQuery('')
       success(`"${newMovie.title}" added to the list!`)
     } catch (err) {
       toastError('Failed to add movie. Try again.')
@@ -182,31 +193,34 @@ export default function Home({ session }) {
   }
 
   // ── Empty state ────────────────────────────────────────────────────────────
-  const emptyMessage = () => { 
+  const emptyState = useMemo(() => { 
     if (loading)     
-      return { icon: <Loader2 className="animate-spin" size={28} />, text: 'Loading your movies…' }
+      return { icon: <Loader2 className="animate-spin" size={28} />, text: 'Loading your movies…', showAdd: false, showSearch: false }
 
     if (error)       
-      return { icon: <AlertTriangle size={28} />, text: `Something went wrong: ${error}` }
+      return { icon: <AlertTriangle size={28} />, text: `Something went wrong: ${error}`, showAdd: false, showSearch: false }
+
+    if (ratingFilter) 
+      return { icon: <Star size={28} />, text: `No movies rated ${ratingFilter}+ yet`, showAdd: false, showSearch: false }
 
     if (search)      
-      return { icon: <SearchX size={28} />, text: `No results for "${search}"` }
+      return { icon: <SearchX size={28} />, text: `No results for "${search}"`, showAdd: false, showSearch: true }
 
     if (activeGenre) 
-      return { icon: <Film size={28} />, text: `No ${activeGenre} movies yet` }
+      return { icon: <Film size={28} />, text: `No ${activeGenre} movies yet`, showAdd: false, showSearch: true }
 
     if (filter === 'watched')   
-      return { icon: <Eye size={28} />, text: 'Nothing watched yet — get watching!' }
+      return { icon: <Eye size={28} />, text: 'Nothing watched yet — get watching!', showAdd: false, showSearch: false }
 
     if (filter === 'unwatched') 
-      return { icon: <PartyPopper size={28} />, text: "You've watched everything!" }
+      return { icon: <PartyPopper size={28} />, text: "You've watched everything!", showAdd: false, showSearch: false }
 
     return { 
       icon: <Clapperboard size={32} />, 
-      text: 'No movies yet. Add the first one!' 
+      text: 'No movies yet. Add the first one!',
+      showAdd: false, showSearch: false 
     }
-  }
-  const empty = emptyMessage()
+  }, [loading, error, search, activeGenre, filter, ratingFilter])
 
   // Merge profile's is_moderator into session for permission checks
   const enrichedSession = profile ? {
@@ -231,13 +245,14 @@ export default function Home({ session }) {
           <p className={styles.heroSub}>Track, rate &amp; discover movies with your circle</p>
         </div>
 
-        <StatsBar total={stats.total} watched={stats.watched} avgRating={stats.avg} />
+        <StatsBar total={stats.total} watched={stats.watched} myMovies={stats.myMovies} />
 
         <Toolbar
-          filter={filter}  onFilter={handleFilter}
-          search={search}  onSearch={handleSearch}
+          filter={filter}          onFilter={handleFilter}
+          ratingFilter={ratingFilter} onRatingFilter={handleRatingFilter}
+          search={search}          onSearch={handleSearch}
           onRandom={handleRandom}
-          onAdd={() => setShowAdd(true)}
+          onAdd={() => openAdd()}
         />
 
         <GenreFilter
@@ -248,12 +263,29 @@ export default function Home({ session }) {
 
         {(loading || error || filtered.length === 0) ? (
           <div className={styles.empty}>
-            <span>{empty.icon}</span>
-            <p>{empty.text}</p>
-            {!loading && !error && filter === 'all' && !search && !activeGenre && (
-              <button className={styles.emptyAddBtn} onClick={() => setShowAdd(true)}>
+            <span>{emptyState.icon}</span>
+            <p>{emptyState.text}</p>
+
+            {/* Empty list — simple add button */}
+            {emptyState.showAdd && (
+              <button className={styles.emptyAddBtn} onClick={() => openAdd()}>
                 + Add a movie
               </button>
+            )}
+
+            {/* Search returned nothing — offer to add that specific movie */}
+            {emptyState.showSearch && !loading && (
+              <div className={styles.emptySearchActions}>
+                <p className={styles.emptySearchHint}>
+                  Not in your list yet?
+                </p>
+                <button
+                  className={styles.emptyAddBtn}
+                  onClick={() => openAdd(search)}
+                >
+                  + Add "{search}" to WatchCircle
+                </button>
+              </div>
             )}
           </div>
         ) : (
@@ -300,8 +332,9 @@ export default function Home({ session }) {
 
       {showAdd && (
         <AddMovieModal
-          onClose={() => setShowAdd(false)}
+          onClose={() => { setShowAdd(false); setAddInitialQuery('') }}
           onAdd={onAdd}
+          initialQuery={addInitialQuery}
         />
       )}
 

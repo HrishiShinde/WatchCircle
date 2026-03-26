@@ -88,7 +88,7 @@
   opacity: 0;
   transition: opacity 0.2s;
 }
-/* .circlePicksBtn:hover::before { opacity: 1; } */
+.circlePicksBtn:hover::before { opacity: 1; }
 .circlePicksBtn:hover { transform: translateY(-1px); }
 .circlePicksBtn:active { transform: translateY(0); }
 .circlePicksBtn > * { position: relative; z-index: 1; }
@@ -120,4 +120,18 @@
 @media (max-width: 640px) {
   .filters { order: 3; width: 100%; }
   .actions { order: 2; }
+}
+
+/* Rating filter active state */
+.fBtn.activeRating {
+  background: rgba(232,197,71,0.15);
+  border-color: rgba(232,197,71,0.5);
+  color: var(--accent);
+}
+
+.starIcon {
+  display: inline;
+  vertical-align: middle;
+  margin-right: 2px;
+  margin-top: -2px;
 }

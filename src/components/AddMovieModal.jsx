@@ -6,8 +6,8 @@ import GenreSelect    from './GenreSelect'
 import PlatformSelect from './PlatformSelect'
 import styles from './AddMovieModal.module.css'
 
-export default function AddMovieModal({ onClose, onAdd }) {
-  const [query,       setQuery]       = useState('')
+export default function AddMovieModal({ onClose, onAdd, initialQuery = '' }) {
+  const [query,       setQuery]       = useState(initialQuery)
   const [results,     setResults]     = useState([])
   const [searching,   setSearching]   = useState(false)
   const [selected,    setSelected]    = useState(null)
@@ -18,7 +18,7 @@ export default function AddMovieModal({ onClose, onAdd }) {
   const [manualMode,  setManualMode]  = useState(false)
   const [manualTitle, setManualTitle] = useState('')
   const [dbGenres,    setDbGenres]    = useState([])
-  const debounceRef = useRef(null)
+  const debounceRef   = useRef(null)
   const searchWrapRef = useRef(null)
 
   // Load genres from DB
@@ -49,25 +49,25 @@ export default function AddMovieModal({ onClose, onAdd }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Debounced search
+  // Debounced TMDB search — also fires immediately if initialQuery is set
   useEffect(() => {
     if (manualMode || !query.trim()) { setResults([]); return }
-    if (selected) return // already picked, don't re-search
+    if (selected) return
     clearTimeout(debounceRef.current)
+    const delay = query === initialQuery && initialQuery ? 0 : 400
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       const res = await searchTMDB(query)
       setResults(res)
       setSearching(false)
-    }, 400)
+    }, delay)
     return () => clearTimeout(debounceRef.current)
   }, [query, manualMode, selected])
 
   const handleTMDBSelect = async (movie) => {
     setSelected(movie)
-    setResults([])   // ← collapse immediately on select
+    setResults([])
     setQuery(movie.title)
-
     if (movie.genre_ids?.length && dbGenres.length) {
       const genreMap   = await fetchTMDBGenreMap()
       const matchedIds = matchGenreIds(movie.genre_ids, genreMap, dbGenres)
