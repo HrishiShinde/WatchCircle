@@ -1,6 +1,6 @@
 import styles from './StatsBar.module.css'
 
-export default function StatsBar({ total, watched, avgRating }) {
+export default function StatsBar({ total, watched, myMovies }) {
   return (
     <div className={styles.grid}>
       <div className={`${styles.card} ${styles.c1}`}>
@@ -16,8 +16,8 @@ export default function StatsBar({ total, watched, avgRating }) {
         <div className={styles.label}>Unwatched</div>
       </div>
       <div className={`${styles.card} ${styles.c4}`}>
-        <div className={styles.num}>{avgRating || '—'}</div>
-        <div className={styles.label}>Avg rating</div>
+        <div className={styles.num}>{myMovies || '0'}</div>
+        <div className={styles.label}>Added</div>
       </div>
     </div>
   )
