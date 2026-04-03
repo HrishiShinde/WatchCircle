@@ -1,8 +1,6 @@
 import { supabase } from './supabase'
 
 // ─── Shared select query ──────────────────────────────────────────────────────
-// Note: profiles joined via added_by foreign key
-// Supabase needs the explicit hint "profiles!added_by" to resolve the relationship
 const MOVIE_SELECT = `
   id, title, poster_path, release_year, duration,
   tmdb_id, avg_rating, rating_count, added_by, created_at,
@@ -20,12 +18,16 @@ const MOVIE_SELECT = `
 
 // ─── Shape raw Supabase row → clean movie object ──────────────────────────────
 export function shapeMovie(row, userId) {
+  if (!row) {
+    return row
+  }
+
   const genres = (row.movie_genres || [])
     .map(mg => mg.genres?.name)
     .filter(Boolean)
 
   const platformData  = (row.movie_platforms || [])[0]
-  const platform      = platformData?.platforms?.name    || null
+  const platform      = platformData?.platforms?.name     || null
   const platform_logo = platformData?.platforms?.logo_url || null
   const watch_link    = platformData?.watch_link          || null
 
@@ -56,7 +58,7 @@ export function shapeMovie(row, userId) {
   }
 }
 
-// ─── Fetch all movies ─────────────────────────────────────────────────────────
+// ─── Fetch all movies (Global) ────────────────────────────────────────────────
 export async function fetchMovies(userId) {
   const { data, error } = await supabase
     .from('movies')
@@ -65,6 +67,33 @@ export async function fetchMovies(userId) {
 
   if (error) throw error
   return data.map(row => shapeMovie(row, userId))
+}
+
+// ─── Fetch movies for a specific circle (Personal or named Circle) ────────────
+export async function fetchCircleMovies(circleId, userId) {
+  const { data, error } = await supabase
+    .from('circle_movies')
+    .select(`
+      added_at,
+      movies (
+        ${MOVIE_SELECT}
+      )
+    `)
+    .eq('circle_id', circleId)
+    .order('added_at', { ascending: false })
+
+  if (error) throw error
+  return data.map(row => shapeMovie(row.movies, userId))
+}
+
+// ─── Add a movie to a circle's list ──────────────────────────────────────────
+export async function addMovieToCircle(circleId, movieId, userId) {
+  const { error } = await supabase
+    .from('circle_movies')
+    .insert({ circle_id: circleId, movie_id: movieId, added_by: userId })
+
+  // Ignore duplicate — movie already in this circle
+  if (error && error.code !== '23505') throw error
 }
 
 // ─── Fetch single movie by id ─────────────────────────────────────────────────
@@ -78,9 +107,22 @@ export async function fetchMovieById(movieId, userId) {
   return shapeMovie(data, userId)
 }
 
+// ─── Fetch movies by tmdb_id ─────────────────────────────────────────────────
+export async function fetchMovieByTMDBId(movieId, userId) {
+  const { data, error } = await supabase
+    .from('movies')
+    .select(MOVIE_SELECT)
+    .eq('tmdb_id', movieId)
+    .maybeSingle();
+
+  console.log("[db] data:", data);
+  if (error) throw error
+  return shapeMovie(data, userId)
+}
+
 // ─── Add a movie ──────────────────────────────────────────────────────────────
 export async function addMovie(movieData, userId) {
-  // 1. Insert core movie row
+  // 1. Insert core movie row into Global (movies table)
   const { data: movie, error: movieErr } = await supabase
     .from('movies')
     .insert({
@@ -124,7 +166,6 @@ export async function addMovie(movieData, userId) {
 
 // ─── Edit a movie ─────────────────────────────────────────────────────────────
 export async function editMovie(movieId, movieData, userId) {
-  // 1. Update core fields
   const { error: movieErr } = await supabase
     .from('movies')
     .update({
@@ -137,7 +178,6 @@ export async function editMovie(movieId, movieData, userId) {
 
   if (movieErr) throw movieErr
 
-  // 2. Replace genres — delete then re-insert
   await supabase.from('movie_genres').delete().eq('movie_id', movieId)
   if (movieData.genre_ids?.length) {
     await supabase.from('movie_genres').insert(
@@ -145,7 +185,6 @@ export async function editMovie(movieId, movieData, userId) {
     )
   }
 
-  // 3. Replace platform — delete then re-insert
   await supabase.from('movie_platforms').delete().eq('movie_id', movieId)
   if (movieData.platform_id) {
     await supabase.from('movie_platforms').insert({
@@ -187,7 +226,6 @@ export async function fetchProfile(userId) {
     .eq('id', userId)
     .single()
 
-  // If profile doesn't exist yet (race condition on signup), create it
   if (error?.code === 'PGRST116') {
     const { data: newProfile } = await supabase
       .from('profiles')

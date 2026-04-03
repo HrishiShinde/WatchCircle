@@ -114,7 +114,7 @@ export default function AddMovieModal({ onClose, onAdd, initialQuery = '' }) {
               <Search size={13} className={styles.searchIcon} />
               <input
                 className={styles.input}
-                placeholder="Search TMDB — poster & details auto-fill…"
+                placeholder="Search Movie"
                 value={query}
                 onChange={e => { setQuery(e.target.value); setSelected(null); setGenres([]) }}
                 autoFocus
@@ -152,13 +152,15 @@ export default function AddMovieModal({ onClose, onAdd, initialQuery = '' }) {
             )}
           </div>
         ) : (
-          <input
-            className={styles.input}
-            placeholder="Movie title"
-            value={manualTitle}
-            onChange={e => setManualTitle(e.target.value)}
-            autoFocus
-          />
+          <div className={styles.searchWrap}>
+            <input
+              className={styles.input}
+              placeholder="Movie title"
+              value={manualTitle}
+              onChange={e => setManualTitle(e.target.value)}
+              autoFocus
+            />
+          </div>
         )}
 
         <div className={styles.fieldGap}>

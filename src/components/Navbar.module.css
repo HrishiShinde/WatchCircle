@@ -7,15 +7,183 @@
   margin-bottom: 28px;
 }
 
+/* ── Left side ─────────────────────────────────────────── */
+.left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .logo {
   font-family: var(--font-head);
   font-size: 26px;
   letter-spacing: 3px;
   color: var(--text);
+  user-select: none;
 }
 
 .logo span { color: var(--accent); }
 
+/* ── Context switcher ──────────────────────────────────── */
+.contextWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* The trigger reads like: [ Global ▾ ] — bracket feel via padding + border */
+.contextTrigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 4px 9px 4px 10px;
+  margin-left: 10px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  color: var(--text2);
+}
+
+.contextTrigger:hover,
+.contextTriggerOpen {
+  background: var(--bg3);
+  border-color: var(--border3);
+  color: var(--text);
+}
+
+.contextLabel {
+  font-family: var(--font-head);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: inherit;
+  /* max width so very long circle names don't blow the navbar */
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  color: var(--text3);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Dropdown panel ────────────────────────────────────── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: dropIn 0.15s ease;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+
+.dropdownItem:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+
+.dropdownItemActive {
+  color: var(--text);
+  background: var(--bg3);
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  color: var(--text3);
+}
+
+.dropdownItemActive .itemIcon {
+  color: var(--accent);
+}
+
+.circleName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Active indicator dot — far right */
+.activeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* MOD badge */
+.modBadge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: rgba(232, 197, 71, 0.12);
+  border: 1px solid rgba(232, 197, 71, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* Create Circle item */
+.createItem {
+  color: var(--accent);
+}
+
+.createItem:hover {
+  background: rgba(232, 197, 71, 0.08);
+  color: var(--accent);
+}
+
+.createItem .itemIcon {
+  color: var(--accent);
+}
+
+/* ── Right side ────────────────────────────────────────── */
 .right {
   display: flex;
   align-items: center;
@@ -75,4 +243,93 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Gear button — appears next to dropdown when named circle is active ── */
+.gearBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 31px;
+  height: 31px;
+  color: var(--text3);
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.2s;
+}
+.gearBtn:hover {
+  background: var(--bg3);
+  border-color: var(--border2);
+  color: var(--text);
+}
+
+/* ── Circle item wrapper for hover preview positioning ── */
+.circleItemWrapper {
+  position: relative;
+}
+
+/* ── Member hover preview ── */
+.memberPreview {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 0;
+  min-width: 200px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  z-index: 110;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: dropIn 0.12s ease;
+  pointer-events: none;
+}
+
+.previewRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+}
+
+.previewAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-size: 14px;
+  color: #111;
+  flex-shrink: 0;
+}
+
+.previewName {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  flex: 1;
+}
+
+.previewMod {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: rgba(232, 197, 71, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.previewMore {
+  font-size: 11px;
+  color: var(--text3);
+  padding: 6px 6px 2px;
+  font-style: italic;
+  line-height: 1.4;
 }

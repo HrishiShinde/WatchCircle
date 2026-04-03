@@ -88,7 +88,7 @@
   opacity: 0;
   transition: opacity 0.2s;
 }
-.circlePicksBtn:hover::before { opacity: 1; }
+/* .circlePicksBtn:hover::before { opacity: 1; } */
 .circlePicksBtn:hover { transform: translateY(-1px); }
 .circlePicksBtn:active { transform: translateY(0); }
 .circlePicksBtn > * { position: relative; z-index: 1; }

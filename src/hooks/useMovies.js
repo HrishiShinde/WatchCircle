@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchMovies, addMovie, editMovie, deleteMovie, rateMovie, fetchProfile } from '../lib/movies'
+import {
+  fetchMovies, fetchCircleMovies, addMovieToCircle,
+  addMovie, editMovie, deleteMovie, rateMovie, fetchProfile, fetchMovieById, fetchMovieByTMDBId
+} from '../lib/movies'
 import { supabase } from '../lib/supabase'
 
-export function useMovies(session) {
+export function useMovies(session, activeCircle) {
   const [movies,   setMovies]   = useState([])
   const [profile,  setProfile]  = useState(null)
   const [loading,  setLoading]  = useState(true)
@@ -10,65 +13,106 @@ export function useMovies(session) {
 
   const userId = session?.user?.id
 
-  // ── Initial load ────────────────────────────────────────────────────────────
+  // ── Derive circle scope ────────────────────────────────────────────────────
+  // null activeCircle = Global, otherwise scoped to that circle's id
+  const circleId = activeCircle?.id ?? null
+
+  // ── Load movies ────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
     setError(null)
     try {
       const [moviesData, profileData] = await Promise.all([
-        fetchMovies(userId),
-        fetchProfile(userId),
+        circleId ? fetchCircleMovies(circleId, userId) : fetchMovies(userId),
+        profile ? Promise.resolve(profile) : fetchProfile(userId),
       ])
       setMovies(moviesData)
-      setProfile(profileData)
+      if (!profile) setProfile(profileData)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [userId, circleId])
 
   useEffect(() => { load() }, [load])
 
-  // ── Realtime subscription — new movies added by other users appear instantly ─
+  // ── Realtime ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userId) return
     const channel = supabase
-      .channel('movies-realtime')
+      .channel(`movies-realtime-${circleId ?? 'global'}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'movies' },
-        () => load() // reload on any change
+        () => load()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'ratings' },
         () => load()
       )
-      .subscribe()
 
+    // Also listen to circle_movies changes when in a circle context
+    if (circleId) {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'circle_movies', filter: `circle_id=eq.${circleId}` },
+        () => load()
+      )
+    }
+
+    channel.subscribe()
     return () => supabase.removeChannel(channel)
-  }, [userId, load])
+  }, [userId, circleId, load])
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // ── Add movie ──────────────────────────────────────────────────────────────
+  // Always adds to Global (movies table) first.
+  // If in a circle context, also inserts into circle_movies.
   const handleAdd = useCallback(async (movieData) => {
-    const newMovie = await addMovie(movieData, userId)
-    setMovies(prev => [newMovie, ...prev])
-    return newMovie
-  }, [userId])
+    // Check if the movie already exists.
+    let movie = await fetchMovieByTMDBId(movieData.tmdb_id, userId)
 
+    // If the movie doesn't exists add it else use same movie id.
+    if (!movie) {
+      movie = await addMovie(movieData, userId)
+    }
+
+    if (circleId) {
+      await addMovieToCircle(circleId, movie.id, userId)
+    }
+
+    // Optimistically prepend to current list
+    setMovies(prev => [movie, ...prev])
+    return movie
+  }, [userId, circleId])
+
+  // ── Edit movie ─────────────────────────────────────────────────────────────
   const handleEdit = useCallback(async (movieId, movieData) => {
     const updated = await editMovie(movieId, movieData, userId)
     setMovies(prev => prev.map(m => m.id === movieId ? updated : m))
     return updated
   }, [userId])
 
+  // ── Delete movie ───────────────────────────────────────────────────────────
+  // In circle context: removes from circle only (not Global)
+  // In Global context: deletes from DB entirely
   const handleDelete = useCallback(async (movieId) => {
-    await deleteMovie(movieId)
+    if (circleId) {
+      const { error } = await supabase
+        .from('circle_movies')
+        .delete()
+        .eq('circle_id', circleId)
+        .eq('movie_id', movieId)
+      if (error) throw error
+    } else {
+      await deleteMovie(movieId)
+    }
     setMovies(prev => prev.filter(m => m.id !== movieId))
-  }, [])
+  }, [circleId])
 
+  // ── Rate movie ─────────────────────────────────────────────────────────────
   const handleRate = useCallback(async (movieId, rating) => {
     const updated = await rateMovie(movieId, userId, rating)
     setMovies(prev => prev.map(m => m.id === movieId ? updated : m))

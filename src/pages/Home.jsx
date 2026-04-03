@@ -1,19 +1,25 @@
-import { useState, useMemo } from 'react'
-import Navbar           from '../components/Navbar'
-import StatsBar         from '../components/StatsBar'
-import Toolbar          from '../components/Toolbar'
-import GenreFilter      from '../components/GenreFilter'
-import MovieCard        from '../components/MovieCard'
-import MovieModal       from '../components/MovieModal'
-import AddMovieModal    from '../components/AddMovieModal'
-import EditMovieModal   from '../components/EditMovieModal'
-import CirclePicksModal from '../components/CirclePicksModal'
-import ToastContainer   from '../components/Toast'
-import { useTheme }     from '../hooks/useTheme'
-import { useToast }     from '../hooks/useToast'
-import { useMovies }    from '../hooks/useMovies'
+import { useState, useMemo, useEffect } from 'react'
+import Navbar             from '../components/Navbar'
+import StatsBar           from '../components/StatsBar'
+import Toolbar            from '../components/Toolbar'
+import GenreFilter        from '../components/GenreFilter'
+import MovieCard          from '../components/MovieCard'
+import MovieModal         from '../components/MovieModal'
+import AddMovieModal      from '../components/AddMovieModal'
+import EditMovieModal     from '../components/EditMovieModal'
+import CirclePicksModal   from '../components/CirclePicksModal'
+import CreateCircleModal  from '../components/CreateCircleModal'
+import CircleDetailModal  from '../components/CircleDetailModal'
+import ToastContainer     from '../components/Toast'
+import { useTheme }       from '../hooks/useTheme'
+import { useToast }       from '../hooks/useToast'
+import { useMovies }      from '../hooks/useMovies'
+import { useCircles }     from '../hooks/useCircles'
 import styles from './Home.module.css'
 import { Clapperboard, SearchX, AlertTriangle, Film, Eye, PartyPopper, Loader2, Star } from 'lucide-react'
+
+// localStorage key — per user so switching accounts doesn't bleed state
+const getStorageKey = (userId) => `wc_active_circle_${userId}`
 
 const MOCK_MOVIES = [
   { id:1, title:'Dune: Part Two', genre:'Sci-Fi', duration:166,
@@ -78,15 +84,94 @@ const MOCK_MOVIES = [
 ];
 
 export default function Home({ session }) {
-  const { theme, toggle }                             = useTheme()
+  const { theme, toggle }                                          = useTheme()
   const { toasts, removeToast, success, error: toastError, info } = useToast()
+  // ── Circle context — must be declared before useMovies ───────────────────────
+  const [activeCircle,     setActiveCircle]     = useState(null)
+  const [circlesReady,     setCirclesReady]     = useState(false)
+  const [showCreateCircle, setShowCreateCircle] = useState(false)
+  const [detailCircle,     setDetailCircle]     = useState(null)
+
   const {
     movies, profile, loading, error,
     handleAdd, handleEdit, handleDelete, handleRate,
-  } = useMovies(session)
+  } = useMovies(session, activeCircle)
+
+  const {
+    circles, personalCircle,
+    getMembers,
+    handleCreate,
+    handleUpdate,
+    handleDelete: handleDeleteCircle,
+    handlePromote,
+    handleRemoveMember,
+    handleLeave,
+    handleGenerateCode,
+    handleFetchCodes,
+  } = useCircles(session?.user?.id)
+
+  // Mark circles as ready once we have data
+  useEffect(() => {
+    if (personalCircle || circles.length > 0) setCirclesReady(true)
+  }, [circles, personalCircle])
+
+  // Restore persisted selection once circles are loaded
+  useEffect(() => {
+    if (!circlesReady || !session?.user?.id) return
+    try {
+      const stored = localStorage.getItem(getStorageKey(session.user.id))
+      if (!stored) return
+
+      const parsed = JSON.parse(stored)
+
+      // null = Global — always valid
+      if (parsed === null) { setActiveCircle(null); return }
+
+      // Personal circle
+      if (parsed.is_personal && personalCircle) {
+        setActiveCircle(personalCircle); return
+      }
+
+      // Named circle — validate user is still a member
+      const stillMember = circles.find(c => c.id === parsed.id)
+      if (stillMember) {
+        setActiveCircle(stillMember)
+      } else {
+        // Circle gone or user left — fall back to Global silently
+        localStorage.removeItem(getStorageKey(session.user.id))
+        setActiveCircle(null)
+      }
+    } catch {
+      localStorage.removeItem(getStorageKey(session.user.id))
+    }
+  }, [circlesReady]) // intentionally only runs once when circles first load
+
+  // Persist activeCircle on every change (but only after circles are ready
+  // to avoid overwriting a valid stored value with null on initial render)
+  useEffect(() => {
+    if (!circlesReady || !session?.user?.id) return
+    try {
+      localStorage.setItem(
+        getStorageKey(session.user.id),
+        JSON.stringify(activeCircle)
+      )
+    } catch {
+      // localStorage unavailable (private browsing etc.) — silently ignore
+    }
+  }, [activeCircle, circlesReady])
+
+  // Switch circle and reset all filters so stale state doesn't carry over
+  const changeActiveCircle = (circle) => {
+    setActiveCircle(circle)
+    setFilter('all')
+    setRatingFilter(null)
+    setSearch('')
+    setActiveGenre(null)
+    setHighlightId(null)
+  }
 
   const [filter,          setFilter]          = useState('all')
-  const [ratingFilter,    setRatingFilter]    = useState(null)  // null | '5' | '7' | '9'
+  const [ratingFilter,    setRatingFilter]    = useState(null)
   const [search,          setSearch]          = useState('')
   const [activeGenre,     setActiveGenre]     = useState(null)
   const [highlightId,     setHighlightId]     = useState(null)
@@ -117,20 +202,26 @@ export default function Home({ session }) {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const watched = movies.filter(m => m.watched_by_me)
-    const ratings = movies.filter(m => m.avg_rating).map(m => Number(m.avg_rating))
-    const avg = ratings.length
+    const watched  = movies.filter(m => m.watched_by_me)
+    const ratings  = movies.filter(m => m.avg_rating).map(m => Number(m.avg_rating))
+    const avg      = ratings.length
       ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
       : null
-    const myMovies = movies.filter(m => m.added_by == session.user.id).length;
+
+    let myMovies = 0;
+    if (activeCircle?.is_personal) {
+      myMovies = movies.length;
+    } else {
+      myMovies = movies.filter(m => m.added_by == session.user.id).length
+    }
     return { total: movies.length, watched: watched.length, avg, myMovies }
   }, [movies])
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleFilter       = (f) => { setFilter(f); setHighlightId(null) }
+  const handleFilter       = (f) => { setFilter(f);       setHighlightId(null) }
   const handleRatingFilter = (r) => { setRatingFilter(r); setHighlightId(null) }
-  const handleSearch       = (v) => { setSearch(v); setHighlightId(null) }
-  const handleGenre        = (g) => { setActiveGenre(g); setHighlightId(null) }
+  const handleSearch       = (v) => { setSearch(v);       setHighlightId(null) }
+  const handleGenre        = (g) => { setActiveGenre(g);  setHighlightId(null) }
 
   const openAdd = (initialQuery = '') => {
     setAddInitialQuery(initialQuery)
@@ -192,37 +283,70 @@ export default function Home({ session }) {
     }
   }
 
+  const onCreateCircle = async (circleData) => {
+    try {
+      const newCircle = await handleCreate(circleData)
+      success(`"${newCircle.name}" circle created! 🎉`)
+      setShowCreateCircle(false)
+      changeActiveCircle(newCircle)
+    } catch (err) {
+      toastError('Failed to create circle. Try again.')
+    }
+  }
+
+  const onUpdateCircle = async (circleId, data) => {
+    try {
+      await handleUpdate(circleId, data)
+      if (activeCircle?.id === circleId) setActiveCircle(prev => ({ ...prev, ...data }))
+      success('Circle updated!')
+    } catch (err) {
+      toastError('Failed to update circle. Try again.')
+    }
+  }
+
+  const onDeleteCircle = async (circleId) => {
+    try {
+      await handleDeleteCircle(circleId)
+      if (activeCircle?.id === circleId) changeActiveCircle(null)
+      success('Circle deleted.')
+    } catch (err) {
+      toastError('Failed to delete circle. Try again.')
+    }
+  }
+
+  const onLeaveCircle = async (circleId) => {
+    try {
+      await handleLeave(circleId)
+      if (activeCircle?.id === circleId) changeActiveCircle(null)
+      success('You left the circle.')
+    } catch (err) {
+      toastError('Failed to leave circle. Try again.')
+    }
+  }
+
   // ── Empty state ────────────────────────────────────────────────────────────
-  const emptyState = useMemo(() => { 
-    if (loading)     
+  const emptyState = useMemo(() => {
+    if (loading)
       return { icon: <Loader2 className="animate-spin" size={28} />, text: 'Loading your movies…', showAdd: false, showSearch: false }
-
-    if (error)       
+    if (error)
       return { icon: <AlertTriangle size={28} />, text: `Something went wrong: ${error}`, showAdd: false, showSearch: false }
-
-    if (ratingFilter) 
+    if (ratingFilter)
       return { icon: <Star size={28} />, text: `No movies rated ${ratingFilter}+ yet`, showAdd: false, showSearch: false }
-
-    if (search)      
+    if (search)
       return { icon: <SearchX size={28} />, text: `No results for "${search}"`, showAdd: false, showSearch: true }
-
-    if (activeGenre) 
+    if (activeGenre)
       return { icon: <Film size={28} />, text: `No ${activeGenre} movies yet`, showAdd: false, showSearch: true }
-
-    if (filter === 'watched')   
+    if (filter === 'watched')
       return { icon: <Eye size={28} />, text: 'Nothing watched yet — get watching!', showAdd: false, showSearch: false }
-
-    if (filter === 'unwatched') 
+    if (filter === 'unwatched')
       return { icon: <PartyPopper size={28} />, text: "You've watched everything!", showAdd: false, showSearch: false }
-
-    return { 
-      icon: <Clapperboard size={32} />, 
+    return {
+      icon: <Clapperboard size={32} />,
       text: 'No movies yet. Add the first one!',
-      showAdd: false, showSearch: false 
+      showAdd: false, showSearch: false
     }
   }, [loading, error, search, activeGenre, filter, ratingFilter])
 
-  // Merge profile's is_moderator into session for permission checks
   const enrichedSession = profile ? {
     ...session,
     user: {
@@ -238,7 +362,17 @@ export default function Home({ session }) {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <Navbar session={enrichedSession} theme={theme} onToggleTheme={toggle} />
+        <Navbar
+          session={enrichedSession}
+          theme={theme}
+          onToggleTheme={toggle}
+          circles={circles}
+          personalCircle={personalCircle}
+          activeCircle={activeCircle}
+          onCircleChange={changeActiveCircle}
+          onCreateCircle={() => setShowCreateCircle(true)}
+          onViewCircle={setDetailCircle}
+        />
 
         <div className={styles.hero}>
           <h1 className={styles.heroTitle}>Your circle, Your picks</h1>
@@ -248,9 +382,9 @@ export default function Home({ session }) {
         <StatsBar total={stats.total} watched={stats.watched} myMovies={stats.myMovies} />
 
         <Toolbar
-          filter={filter}          onFilter={handleFilter}
+          filter={filter}             onFilter={handleFilter}
           ratingFilter={ratingFilter} onRatingFilter={handleRatingFilter}
-          search={search}          onSearch={handleSearch}
+          search={search}             onSearch={handleSearch}
           onRandom={handleRandom}
           onAdd={() => openAdd()}
         />
@@ -265,24 +399,15 @@ export default function Home({ session }) {
           <div className={styles.empty}>
             <span>{emptyState.icon}</span>
             <p>{emptyState.text}</p>
-
-            {/* Empty list — simple add button */}
             {emptyState.showAdd && (
               <button className={styles.emptyAddBtn} onClick={() => openAdd()}>
                 + Add a movie
               </button>
             )}
-
-            {/* Search returned nothing — offer to add that specific movie */}
             {emptyState.showSearch && !loading && (
               <div className={styles.emptySearchActions}>
-                <p className={styles.emptySearchHint}>
-                  Not in your list yet?
-                </p>
-                <button
-                  className={styles.emptyAddBtn}
-                  onClick={() => openAdd(search)}
-                >
+                <p className={styles.emptySearchHint}>Not in your list yet?</p>
+                <button className={styles.emptyAddBtn} onClick={() => openAdd(search)}>
                   + Add "{search}" to WatchCircle
                 </button>
               </div>
@@ -335,6 +460,29 @@ export default function Home({ session }) {
           onClose={() => { setShowAdd(false); setAddInitialQuery('') }}
           onAdd={onAdd}
           initialQuery={addInitialQuery}
+        />
+      )}
+
+      {showCreateCircle && (
+        <CreateCircleModal
+          onClose={() => setShowCreateCircle(false)}
+          onCreate={onCreateCircle}
+        />
+      )}
+
+      {detailCircle && (
+        <CircleDetailModal
+          circle={detailCircle}
+          currentUserId={session.user.id}
+          onClose={() => setDetailCircle(null)}
+          onUpdate={onUpdateCircle}
+          onDelete={onDeleteCircle}
+          onLeave={onLeaveCircle}
+          onPromote={handlePromote}
+          onRemoveMember={handleRemoveMember}
+          onGenerateCode={handleGenerateCode}
+          onFetchCodes={handleFetchCodes}
+          getMembers={getMembers}
         />
       )}
 
