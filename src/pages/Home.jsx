@@ -15,6 +15,8 @@ import { useMovies }    from '../hooks/useMovies'
 import styles           from './Home.module.css'
 import { useParams, useNavigate } from 'react-router-dom';
 import { Clapperboard, SearchX, AlertTriangle, Film, Eye, PartyPopper, Loader2, Star } from 'lucide-react'
+import MovieCardSkeleton from '../components/MovieCardSkeleton'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 
 const MOCK_MOVIES = [
   { id:1, title:'Dune: Part Two', genre:'Sci-Fi', duration:166,
@@ -243,6 +245,8 @@ export default function Home({ session }) {
     }
   }, [loading, error, search, activeGenre, filter, ratingFilter])
 
+  const { visible, sentinelRef, hasMore } = useInfiniteScroll(filtered)
+
   // Merge profile's is_moderator into session for permission checks
   const enrichedSession = profile ? {
     ...session,
@@ -282,24 +286,28 @@ export default function Home({ session }) {
           onGenreChange={handleGenre}
         />
 
-        {(loading || error || filtered.length === 0) ? (
+        {loading ? (
+          // ── Skeleton grid while loading ──
+          <div className={styles.grid}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <MovieCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (error || filtered.length === 0) ? (
+          // ── Empty / error state ──
           <div className={styles.empty}>
             <span>{emptyState.icon}</span>
             <p>{emptyState.text}</p>
-
-            {/* Empty list — simple add button */}
+        
             {emptyState.showAdd && (
               <button className={styles.emptyAddBtn} onClick={() => openAdd()}>
                 + Add a movie
               </button>
             )}
-
-            {/* Search returned nothing — offer to add that specific movie */}
-            {emptyState.showSearch && !loading && (
+        
+            {emptyState.showSearch && (
               <div className={styles.emptySearchActions}>
-                <p className={styles.emptySearchHint}>
-                  Not in your list yet?
-                </p>
+                <p className={styles.emptySearchHint}>Not in your list yet?</p>
                 <button
                   className={styles.emptyAddBtn}
                   onClick={() => openAdd(search)}
@@ -310,16 +318,24 @@ export default function Home({ session }) {
             )}
           </div>
         ) : (
-          <div className={styles.grid}>
-            {filtered.map(movie => (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                isHighlighted={highlightId === movie.id}
-                onClick={setDetailMovie}
-              />
-            ))}
-          </div>
+          // ── Movie grid with infinite scroll ──
+          <>
+            <div className={styles.grid}>
+              {visible.map(movie => (
+                <MovieCard
+                  key={movie.id}
+                  movie={movie}
+                  isHighlighted={highlightId === movie.id}
+                  onClick={setDetailMovie}
+                />
+              ))}
+            </div>
+        
+            {/* Intersection sentinel — triggers next batch when scrolled into view */}
+            {hasMore && (
+              <div ref={sentinelRef} className={styles.sentinel} />
+            )}
+          </>
         )}
       </div>
 

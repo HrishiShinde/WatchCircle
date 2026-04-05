@@ -1,0 +1,62 @@
+/* Matches MovieCard's exact shape */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: var(--bg3);
+}
+
+.info {
+  padding: 11px 12px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  height: 13px;
+  border-radius: 6px;
+  background: var(--bg3);
+  width: 80%;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+}
+
+.genre {
+  height: 11px;
+  border-radius: 6px;
+  background: var(--bg3);
+  width: 45%;
+}
+
+.rating {
+  height: 11px;
+  border-radius: 6px;
+  background: var(--bg3);
+  width: 20%;
+}
+
+/* Shimmer animation — applied via Home.module.css on the grid */
+.card,
+.poster,
+.title,
+.genre,
+.rating {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.45; }
+  100% { opacity: 1; }
+}
